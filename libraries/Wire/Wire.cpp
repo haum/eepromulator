@@ -40,6 +40,7 @@ uint8_t TwoWire::txBufferIndex = 0;
 uint8_t TwoWire::txBufferLength = 0;
 
 uint8_t TwoWire::transmitting = 0;
+void (*TwoWire::user_onRequestComplete)(int);
 void (*TwoWire::user_onRequest)(void);
 void (*TwoWire::user_onReceive)(int);
 
@@ -65,6 +66,7 @@ void TwoWire::begin(void)
 void TwoWire::begin(uint8_t address)
 {
   twi_setAddress(address);
+  twi_attachSlaveTxDoneEvent(onRequestCompleteService);
   twi_attachSlaveTxEvent(onRequestService);
   twi_attachSlaveRxEvent(onReceiveService);
   begin();
@@ -280,6 +282,17 @@ void TwoWire::onRequestService(void)
   user_onRequest();
 }
 
+// behind the scenes function that is called when data request is completed
+void TwoWire::onRequestCompleteService(int numBytes)
+{
+  // don't bother if user hasn't registered a callback
+  if(!user_onRequestComplete){
+    return;
+  }
+  // alert user program
+  user_onRequestComplete(numBytes);
+}
+
 // sets function called on slave write
 void TwoWire::onReceive( void (*function)(int) )
 {
@@ -290,6 +303,12 @@ void TwoWire::onReceive( void (*function)(int) )
 void TwoWire::onRequest( void (*function)(void) )
 {
   user_onRequest = function;
+}
+
+// sets function called on slave read end
+void TwoWire::onRequestComplete( void (*function)(int) )
+{
+  user_onRequestComplete = function;
 }
 
 // Preinstantiate Objects //////////////////////////////////////////////////////

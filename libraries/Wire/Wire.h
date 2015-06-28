@@ -40,8 +40,10 @@ class TwoWire : public Stream
     static uint8_t txBufferLength;
 
     static uint8_t transmitting;
+    static void (*user_onRequestComplete)(int);
     static void (*user_onRequest)(void);
     static void (*user_onReceive)(int);
+    static void onRequestCompleteService(int);
     static void onRequestService(void);
     static void onReceiveService(uint8_t*, int);
   public:
@@ -64,6 +66,7 @@ class TwoWire : public Stream
     virtual int peek(void);
 	virtual void flush(void);
     void onReceive( void (*)(int) );
+    void onRequestComplete( void (*)(int) );
     void onRequest( void (*)(void) );
   
     inline size_t write(unsigned long n) { return write((uint8_t)n); }

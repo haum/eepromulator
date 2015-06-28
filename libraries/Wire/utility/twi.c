@@ -45,6 +45,7 @@ static volatile uint8_t twi_inRepStart;			// in the middle of a repeated start
 
 static void (*twi_onSlaveTransmit)(void);
 static void (*twi_onSlaveReceive)(uint8_t*, int);
+static void (*twi_onSlaveTransmitionEnded)(int);
 
 static uint8_t twi_masterBuffer[TWI_BUFFER_LENGTH];
 static volatile uint8_t twi_masterBufferIndex;
@@ -309,6 +310,17 @@ void twi_attachSlaveTxEvent( void (*function)(void) )
 }
 
 /* 
+ * Function twi_attachSlaveTxDoneEvent
+ * Desc     sets function called after a slave write operation
+ * Input    function: callback function to use
+ * Output   none
+ */
+void twi_attachSlaveTxDoneEvent( void (*function)(int) )
+{
+  twi_onSlaveTransmitionEnded = function;
+}
+
+/* 
  * Function twi_reply
  * Desc     sends byte or readys receive line
  * Input    ack: byte indicating to ack or to nack
@@ -509,6 +521,8 @@ ISR(TWI_vect)
       break;
     case TW_ST_DATA_NACK: // received nack, we are done 
     case TW_ST_LAST_DATA: // received ack, but we are done already!
+      // inform user of the actual consummed bytes
+      twi_onSlaveTransmitionEnded(twi_txBufferIndex-1);
       // ack future responses
       twi_reply(1);
       // leave slave receiver state
