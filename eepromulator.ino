@@ -22,21 +22,27 @@ static uint8_t eeprom[256] = {
     0x46, 0x08, 0x35, 0xcd, 0x01, 0x00, 0x58, 0x04, 0x24, 0x05, 0x11, 0x20, 0xff, 0xff, 0xff, 0xff
 };
 
+void requestCompleteEvent(int bytesSent);
 void requestEvent();
 void receiveEvent(int bytesReceived);
 
-static bool updated = false;
-static uint8_t _requestCount = 0;
-static uint8_t _receiveCount = 0;
-static uint8_t _bytesReceivedCount = 0;
-static uint8_t _bytesReceived = 0;
-volatile uint8_t _lastByte = 0x00;
+static volatile bool updated = false;
+static volatile uint8_t _requestCompleteCount = 0;
+static volatile uint8_t _requestCount = 0;
+static volatile uint8_t _receiveCount = 0;
+static volatile uint8_t _bytesReceivedCount = 0;
+static volatile uint8_t _bytesReceived = 0;
+
+static volatile uint8_t _lastByte = 0x00;
+static volatile uint8_t _eepromOffset = 0;
+static volatile uint8_t _bytesSent = 0;
 
 void setup()
 {
   Serial.begin(9600);
   Serial.print("eepromuino\r\n");
   Wire.begin(SLAVE_ADDRESS); 
+  Wire.onRequestComplete(requestCompleteEvent);
   Wire.onRequest(requestEvent);
   Wire.onReceive(receiveEvent);
 }
@@ -46,31 +52,63 @@ void loop()
   if (updated) {
     Serial.print("bytesReceived: ");
     Serial.println(_bytesReceived);
+    Serial.print("bytesSent: ");
+    Serial.println(_bytesSent);
+    Serial.print("requestCompleteCount: ");
+    Serial.println(_requestCompleteCount);
     Serial.print("requestCount: ");
     Serial.println(_requestCount);
     Serial.print("receiveCount: ");
     Serial.println(_receiveCount);
     Serial.print("lastByte: ");
     Serial.println(_lastByte);
+    Serial.print("eeprom offset: ");
+    Serial.println(_eepromOffset);
     Serial.print("\r\n");
     updated = false;
   }
 }
 
-#define MIN( X , Y ) ( (X) > (Y) ? (Y):(X) )
+#define LOCAL_TWI_BUFFER_LENGTH 255 // We cannot use global TWI_BUFFER_LENGTH ; but if we do not limit, request is silently rejected !
 void requestEvent()
 {
+  // Actual work
+  _eepromOffset %= sizeof(eeprom);
+  int toWrite = sizeof(eeprom)-_eepromOffset;
+  if (toWrite > LOCAL_TWI_BUFFER_LENGTH)
+    toWrite = LOCAL_TWI_BUFFER_LENGTH;
+  Wire.write(eeprom+_eepromOffset, toWrite);
+  ++_eepromOffset;
+
+  // Debug
   ++_requestCount;
-  Wire.write(eeprom+_lastByte, MIN(sizeof(eeprom)-_lastByte, 255));
   updated = true;
 }
 
 void receiveEvent(int bytesReceived)
 {
+  // Actual work
+  _eepromOffset = Wire.read();
+
+  // Debug
   _bytesReceived = bytesReceived;
   _bytesReceivedCount += bytesReceived;
-  _lastByte = Wire.read();
+  _lastByte = _eepromOffset;
   ++_receiveCount;
   updated = true;
 }
 
+void requestCompleteEvent(int bytesSent)
+{
+  // Actual work
+  _eepromOffset += bytesSent;
+
+  // Debug
+  ++_requestCompleteCount;
+  _bytesSent += bytesSent;
+  updated = true;
+}
+
+/*
+# vim: ft=cpp
+*/
